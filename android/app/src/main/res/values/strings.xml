@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SmartEnergy</string>
+    <string name="title_activity_main">SmartEnergy</string>
+    <string name="package_name">com.smarthome.energymonitor</string>
+    <string name="custom_url_scheme">com.smarthome.energymonitor</string>
+</resources>
