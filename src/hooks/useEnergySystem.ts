@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useDeferredValue } from 'react';
 import { ref, onValue, update } from 'firebase/database';
 import { db } from '../lib/firebase';
 import { Device } from '../components/DeviceList';
@@ -26,9 +26,14 @@ export function useEnergySystem() {
     const [isIntrusion, setIsIntrusion] = useState(false);
     const [isOnline, setIsOnline] = useState(false);
 
+    const deferredMetrics = useDeferredValue(metrics);
+
     // Settings State
     const [pushNotifications, setPushNotifications] = useState(true);
-    const [darkMode, setDarkMode] = useState(true);
+    const [darkMode, setDarkMode] = useState(() => {
+        const saved = localStorage.getItem('darkModePreference');
+        return saved !== null ? saved === 'true' : true;
+    });
     const [currency, setCurrency] = useState('C$');
 
     const shedCooldown = useRef(false);
@@ -81,7 +86,10 @@ export function useEnergySystem() {
                 if (data.mode && data.mode !== currentMode) setCurrentMode(data.mode as Mode);
                 if (data.powerLimit) setPowerLimit(data.powerLimit);
                 if (data.pushNotifications !== undefined) setPushNotifications(data.pushNotifications);
-                if (data.darkMode !== undefined) setDarkMode(data.darkMode);
+                if (data.darkMode !== undefined) {
+                    setDarkMode(data.darkMode);
+                    localStorage.setItem('darkModePreference', String(data.darkMode));
+                }
                 if (data.currency) setCurrency(data.currency);
             }
         });
@@ -165,7 +173,8 @@ export function useEnergySystem() {
 
     return {
         devices,
-        metrics,
+        metrics: deferredMetrics, // Exportar las métricas diferidas para máxima fluidez en gráficos/odómetros
+        rawMetrics: metrics, // Por si se necesita el valor crudo real
         currentMode,
         isOnline,
         isIntrusion,

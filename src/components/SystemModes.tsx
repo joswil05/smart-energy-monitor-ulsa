@@ -12,11 +12,11 @@ interface SystemModesProps {
 }
 
 export function SystemModes({ currentMode, onModeChange }: SystemModesProps) {
-  const modes: { id: Mode; label: string; icon: any; color: string; bg: string; desc: string }[] = [
-    { id: 'normal', label: 'Normal', icon: Zap, color: 'text-blue-400', bg: 'bg-blue-500/10', desc: 'Monitoreo estándar sin restricciones' },
-    { id: 'eco', label: 'Eco', icon: Leaf, color: 'text-emerald-400', bg: 'bg-emerald-500/10', desc: 'Límite de 600W con auto-desconexión de cargas no esenciales' },
-    { id: 'away', label: 'Away', icon: Shield, color: 'text-amber-400', bg: 'bg-amber-500/10', desc: 'Seguridad máxima. Solo sistemas críticos activos' },
-    { id: 'night', label: 'Night', icon: Moon, color: 'text-indigo-400', bg: 'bg-indigo-500/10', desc: 'Optimización de iluminación y ahorro en climatización' },
+  const modes: { id: Mode; label: string; icon: any; iconClass: string; desc: string }[] = [
+    { id: 'normal', label: 'Normal', icon: Zap, iconClass: 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400', desc: 'Monitoreo estándar sin restricciones' },
+    { id: 'eco', label: 'Eco', icon: Leaf, iconClass: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400', desc: 'Límite de 600W con auto-desconexión de cargas no esenciales' },
+    { id: 'away', label: 'Away', icon: Shield, iconClass: 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400', desc: 'Seguridad máxima. Solo sistemas críticos activos' },
+    { id: 'night', label: 'Night', icon: Moon, iconClass: 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400', desc: 'Optimización de iluminación y ahorro en climatización' },
   ];
 
   return (
@@ -26,18 +26,16 @@ export function SystemModes({ currentMode, onModeChange }: SystemModesProps) {
         return (
           <motion.button
             key={mode.id}
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.15, delay: index * 0.02, ease: "easeOut" }}
+            whileTap={{ scale: 0.96 }}
             onClick={async () => {
               onModeChange(mode.id);
-              try { await Haptics.impact({ style: ImpactStyle.Medium }); } catch (e) { }
+              try { await Haptics.vibrate({ duration: 15 }); } catch (e) { }
             }}
             className={cn(
               "relative p-4 rounded-2xl border text-left transition-all duration-300 group overflow-hidden",
               isActive
-                ? "bg-slate-800 border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.15)] scale-[1.02]"
-                : "bg-slate-900/50 border-white/5 hover:border-white/10 hover:bg-slate-800/50"
+                ? "bg-[#F8FAFC] dark:bg-[#1E293B] border-blue-500/40 shadow-[0_0_20px_rgba(59,130,246,0.15)] scale-[1.02]"
+                : "bg-white shadow-sm shadow-blue-900/5 dark:bg-[#131B2F] border-slate-200 dark:border-[#1E293B] hover:border-slate-300 dark:hover:border-[#334155]"
             )}
           >
             {isActive && (
@@ -47,8 +45,8 @@ export function SystemModes({ currentMode, onModeChange }: SystemModesProps) {
             <div className="relative z-10">
               <div className="flex justify-between items-start mb-3">
                 <div className={cn(
-                  "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
-                  isActive ? "bg-blue-500 text-white shadow-[0_0_15px_rgba(59,130,246,0.6)]" : cn(mode.bg, mode.color)
+                  "w-10 h-10 rounded-xl flex items-center justify-center transition-colors duration-300",
+                  isActive ? "bg-blue-600 dark:bg-blue-500 text-white shadow-[0_0_15px_rgba(59,130,246,0.6)]" : mode.iconClass
                 )}>
                   <mode.icon size={20} strokeWidth={2.5} />
                 </div>
@@ -60,10 +58,10 @@ export function SystemModes({ currentMode, onModeChange }: SystemModesProps) {
                 )}
               </div>
 
-              <div className={cn("font-semibold transition-colors", isActive ? "text-white" : "text-slate-200")}>
+              <div className={cn("font-semibold transition-colors duration-300", isActive ? "text-[#0F172A] dark:text-[#F1F5F9]" : "text-[#64748B] dark:text-[#94A3B8]")}>
                 {mode.label}
               </div>
-              <div className={cn("text-xs mt-1 transition-colors", isActive ? "text-blue-200" : "text-slate-500")}>
+              <div className={cn("text-xs mt-1 transition-colors duration-300", isActive ? "text-blue-600 dark:text-blue-400" : "text-[#94A3B8] dark:text-[#64748B]")}>
                 {mode.desc}
               </div>
             </div>
