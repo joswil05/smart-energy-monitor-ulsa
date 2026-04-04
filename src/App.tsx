@@ -44,6 +44,7 @@ export default function App() {
   const {
     devices,
     metrics,
+    historicalData,
     currentMode,
     isOnline,
     isIntrusion,
@@ -73,7 +74,7 @@ export default function App() {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard': return <DashboardTab metrics={metrics} currency={currency} hourlyData={mockHourlyData} isOverload={metrics.power > 1200} />;
+      case 'dashboard': return <DashboardTab metrics={metrics} currency={currency} hourlyData={historicalData} isOverload={metrics.power > 1200} />;
       case 'devices': return <DevicesTab devices={devices} onToggle={toggleDevice} />;
       case 'analytics': return <SystemModesTab currentMode={currentMode} onModeChange={changeMode} />;
       case 'settings': return <SettingsTab pushNotifications={pushNotifications} darkMode={darkMode} currency={currency} onSettingChange={updateSetting} onRestartESP32={handleRestartESP32} />;

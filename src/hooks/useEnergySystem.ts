@@ -21,6 +21,7 @@ export function useEnergySystem() {
         powerFactor: 0,
         energy: 0,
     });
+    const [historicalData, setHistoricalData] = useState<{time: string, value: number}[]>([]);
     const [currentMode, setCurrentMode] = useState<Mode>('normal');
     const [powerLimit, setPowerLimit] = useState(1200);
     const [isIntrusion, setIsIntrusion] = useState(false);
@@ -56,13 +57,23 @@ export function useEnergySystem() {
         const unsubscribeMetrics = onValue(metricsRef, (snapshot) => {
             const data = snapshot.val();
             if (data) {
+                const newPower = Number(data.p) || 0;
                 setMetrics({
                     voltage: Number(data.v) || 0,
                     current: Number(data.i) || 0,
-                    power: Number(data.p) || 0,
+                    power: newPower,
                     powerFactor: Number(data.pf) || 0,
                     energy: Number(data.e) || 0,
                 });
+                
+                setHistoricalData(prev => {
+                    const now = new Date();
+                    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+                    const newData = [...prev, { time: timeStr, value: Math.round(newPower) }];
+                    if (newData.length > 20) return newData.slice(newData.length - 20); // Maintain last 20 ticks
+                    return newData;
+                });
+
                 lastUpdateRef.current = Date.now();
                 setIsOnline(true);
             }
@@ -175,6 +186,7 @@ export function useEnergySystem() {
         devices,
         metrics: deferredMetrics, // Exportar las métricas diferidas para máxima fluidez en gráficos/odómetros
         rawMetrics: metrics, // Por si se necesita el valor crudo real
+        historicalData,
         currentMode,
         isOnline,
         isIntrusion,

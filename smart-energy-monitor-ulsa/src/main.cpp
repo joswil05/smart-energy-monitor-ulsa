@@ -7,15 +7,13 @@
 #include <Wire.h>
 
 // 1. CREDENCIALES DE RED Y CLOUD
-#define WIFI_SSID "TU_WIFI"
-#define WIFI_PASSWORD "TU_PASS"
+#define WIFI_SSID "CLARO1_2DF870"
+#define WIFI_PASSWORD "000WXsnopo"
 #define API_KEY "AIzaSyDKPdI9xkrFVOEJ83moYlzHKyHbyOWIiP0"
-#define DATABASE_URL "https://smart-energy-ulsa-default-rtdb.firebaseio.com/"
+#define DATABASE_URL "smart-energy-ulsa-default-rtdb.firebaseio.com"
 
 // 2. HARDWARE DE LA MAQUETA (Nivel Industrial)
-// Relés: D13(R1-Iluminacion), D12(R2-Ventilacion), D14(R3-Confort),
-// D27(R4-Sirena)
-const int PINES_RELES[] = {13, 12, 14, 27};
+const int PINES_RELES[] = {4, 16, 14, 27};
 const int PIN_PIR = 26;
 
 // SENSORES ANÁLOGOS (CA)
@@ -41,64 +39,59 @@ Preferences preferences;
 // FUNCIONES DE MEDICIÓN ANÁLOGA RMS (C.A.)
 // ==========================================
 
-// Función para leer Corriente RMS (A) usando el sensor análogo
-// Nota: Requiere 1000 muestras para escanear varias ondas senoidales a 60Hz.
 float getCurrentRMS(int pin) {
+  // --- MODO SIMULACIÓN POTENCIÓMETRO (0 a 30 Amperes) ---
+  int adc_val = analogRead(pin);
+  return (adc_val / 4095.0) * 30.0;
+
+  /* --- MODO SENSOR REAL (Comentado temporalmente) ---
   float current_sum = 0;
   int num_samples = 1000;
-  float zero_point =
-      1880; // Idealmente el ADC en reposo marca ~1880 (varía por placa)
-  float mv_per_amp =
-      100.0; // Sensibilidad del ACS712 20A es 100mV/A (Ajustar según sensor)
+  float zero_point = 1880.0; // Ajustar según lectura ADC en reposo
+  float mv_per_amp = 100.0;  // Sensibilidad ACS712 20A: 100mV/A
 
   for (int i = 0; i < num_samples; i++) {
     int adc_val = analogRead(pin);
-    // Convertir ADC a Voltaje (ESP32 tiene 3.3V en 4095 pasos)
     float voltage = (adc_val / 4095.0) * 3300.0;
-
-    // Obtenemos la diferencia respecto al punto cero y calculamos miliamperios
-    // instantáneos
     float current_instant = (voltage - zero_point) / mv_per_amp;
-
-    // Suma de cuadrados para RMS
     current_sum += sq(current_instant);
     delayMicroseconds(100);
   }
 
-  // Raiz Cuadrada Media (RMS)
   float current_rms = sqrt(current_sum / num_samples);
-
-  // Filtro de ruido
   if (current_rms < 0.05)
-    current_rms = 0;
+    current_rms = 0; // Filtro de ruido
   return current_rms;
+  */
 }
 
-// Función súper simplificada para leer Voltaje AC (ZMPT101B)
 float getVoltageAC(int pin) {
+  // --- MODO SIMULACIÓN POTENCIÓMETRO (0 a 140 Voltios) ---
+  int adc_val = analogRead(pin);
+  return (adc_val / 4095.0) * 140.0;
+
+  /* --- MODO SENSOR REAL (Comentado temporalmente) ---
   float max_v = 0;
   for (int i = 0; i < 500; i++) {
-    float v = (analogRead(pin) / 4095.0) * 3.3; // Convertir a V DC
+    float v = (analogRead(pin) / 4095.0) * 3.3;
     if (v > max_v)
       max_v = v;
     delayMicroseconds(100);
   }
-  // Mapeo crudo para la Maqueta: ZMPT101B ajustado
-  // (Este mapeo dependerá del potenciómetro que traiga el módulo azul ZMPT)
-  float voltage_ac = max_v * 75.0;
+  float voltage_ac = max_v * 75.0; // Calibración ZMPT101B
   if (voltage_ac < 20)
-    voltage_ac = 0; // Filtro de ruido
+    voltage_ac = 0;
   return voltage_ac;
+  */
 }
 
 // ==========================================
-// TAREA 1: CONTROL FÍSICO Y MEDICIÓN
+// TAREA 1: CONTROL FÍSICO Y MEDICIÓN (CORE 1)
 // ==========================================
 void vControlTask(void *pvParameters) {
   int displayTimer = 0;
   unsigned long lastTime = millis();
   unsigned long lastSaveTime = millis();
-
   unsigned long pirTimer = 0;
   bool pirActive = false;
   bool intruderAlert = false;
@@ -108,21 +101,18 @@ void vControlTask(void *pvParameters) {
     float deltaTimeHours = (currentTime - lastTime) / 3600000.0;
     lastTime = currentTime;
 
-    // A. Adquisición de Datos AC (Potencia Real)
+    // A. Adquisición de Datos
     float i_rms = getCurrentRMS(PIN_CORRIENTE);
     float v_ac = getVoltageAC(PIN_VOLTAJE);
-
-    // En Corriente Alterna monofásica: P = V * I (Potencia Aparente, asumida
-    // como Real para maqueta resistiva)
     float p_watts = v_ac * i_rms;
 
-    // B. Integración Matemática de Energía (kWh)
+    // B. Integración de Energía
     if (xSemaphoreTake(xFirebaseMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
       energykWh += (p_watts / 1000.0) * deltaTimeHours;
       xSemaphoreGive(xFirebaseMutex);
     }
 
-    // Guardado de estado EPROM
+    // Guardado en Flash cada 60s
     if (currentTime - lastSaveTime > 60000) {
       preferences.putFloat("total", energykWh);
       lastSaveTime = currentTime;
@@ -131,53 +121,65 @@ void vControlTask(void *pvParameters) {
 
     // C. Lógica Inteligente Híbrida (Edge Computing local)
     if (currentMode == "eco") {
-      // Prioridad: Apagar Carga de Confort (Relé 3) si hay sobrecarga local
-      // (Fail-safe ultra rápido)
-      if (p_watts > 600) {
-        digitalWrite(PINES_RELES[2], LOW);
-      }
+      // (Test Mode) Comentado por ruido analógico: if (p_watts > 600)
+      // digitalWrite(PINES_RELES[2], LOW);
     } else if (currentMode == "night") {
-      digitalWrite(PINES_RELES[2], LOW); // Confort OFF
+      // (Test Mode) Comentado por ruido: digitalWrite(PINES_RELES[2], LOW); //
+      // Confort OFF
       if (digitalRead(PIN_PIR) == HIGH) {
-        digitalWrite(PINES_RELES[0], HIGH); // Iluminación PIR
-        pirTimer = currentTime;
-        pirActive = true;
+        if (!pirActive) {
+          if (xSemaphoreTake(xFirebaseMutex, pdMS_TO_TICKS(20)) == pdTRUE) {
+            digitalWrite(PINES_RELES[0], HIGH); // Iluminación PIR
+            Firebase.RTDB.setBool(&fbdo, "system/devices/1/isOn", true);
+            pirTimer = currentTime;
+            pirActive = true;
+            xSemaphoreGive(xFirebaseMutex);
+          }
+        } else {
+          pirTimer = currentTime;
+        }
       } else if (pirActive && (currentTime - pirTimer > 30000)) {
-        digitalWrite(PINES_RELES[0], LOW);
-        pirActive = false;
+        if (xSemaphoreTake(xFirebaseMutex, pdMS_TO_TICKS(20)) == pdTRUE) {
+          digitalWrite(PINES_RELES[0], LOW);
+          Firebase.RTDB.setBool(&fbdo, "system/devices/1/isOn", false);
+          pirActive = false;
+          xSemaphoreGive(xFirebaseMutex);
+        }
       }
     } else if (currentMode == "away") {
       bool isIntentionalUse = (digitalRead(PINES_RELES[0]) == HIGH) ||
                               (digitalRead(PINES_RELES[1]) == HIGH) ||
                               (digitalRead(PINES_RELES[2]) == HIGH);
-
       // Intruso = PIR moviendo O (+10W sin ser tú)
       if (digitalRead(PIN_PIR) == HIGH || (p_watts > 10 && !isIntentionalUse)) {
-        intruderAlert = true;
-        digitalWrite(PINES_RELES[3], HIGH); // Sirena ON
+        if (!intruderAlert) {
+          if (xSemaphoreTake(xFirebaseMutex, pdMS_TO_TICKS(20)) == pdTRUE) {
+            intruderAlert = true;
+            digitalWrite(PINES_RELES[3], HIGH); // Sirena ON
+            Firebase.RTDB.setBool(&fbdo, "system/devices/4/isOn", true);
+            xSemaphoreGive(xFirebaseMutex);
+          }
+        }
       } else if (!intruderAlert) {
         digitalWrite(PINES_RELES[3], LOW); // Sirena OFF
       }
     } else {
       intruderAlert = false;
-      // Fail-Safe Físico: Apagón de emergencia local si la corriente supera los
-      // 15 Amperios (Cortocircuito)
-      if (i_rms > 15.0) {
-        digitalWrite(PINES_RELES[0], LOW);
-        digitalWrite(PINES_RELES[1], LOW);
-        digitalWrite(PINES_RELES[2], LOW);
-      }
+      // Fail-Safe Físico: (Test Mode) Comentado temporalmente por fluctuaciones
+      // fantasmas sin hardware. if (i_rms > 15.0) {
+      //   digitalWrite(PINES_RELES[0], LOW);
+      //   digitalWrite(PINES_RELES[1], LOW);
+      //   digitalWrite(PINES_RELES[2], LOW);
+      // }
     }
 
-    // D. HMI - Pantalla OLED
+    // D. Pantalla OLED
     if (++displayTimer >= 10) {
       display.clearDisplay();
       display.setTextColor(WHITE);
-
-      // Header
       display.setTextSize(1);
       display.setCursor(0, 0);
-      display.print("MODO:");
+      display.print("MODO: ");
       String modeUpper = currentMode;
       modeUpper.toUpperCase();
       display.print(modeUpper);
@@ -185,21 +187,15 @@ void vControlTask(void *pvParameters) {
       display.print(WiFi.status() == WL_CONNECTED ? "WIFI" : "OFF");
       display.drawLine(0, 10, 128, 10, WHITE);
 
-      // Body (Lecturas AC Verdaderas)
       display.setCursor(0, 15);
-      display.printf("V: %.1fV", v_ac);
-      display.setCursor(70, 15);
-      display.printf("I: %.2fA", i_rms);
-
+      display.printf("V: %.1fV  I: %.2fA", v_ac, i_rms);
       display.setTextSize(2);
       display.setCursor(0, 26);
       display.printf("%.0f W", p_watts);
       display.setTextSize(1);
-
       display.setCursor(0, 45);
       display.printf("E: %.4fkWh", energykWh);
 
-      // Alertas
       if (currentMode == "eco" && p_watts > 600) {
         display.setCursor(70, 32);
         display.print("[R3 OFF]");
@@ -208,7 +204,6 @@ void vControlTask(void *pvParameters) {
         display.print("[INTRUSO!]");
       }
 
-      // Footer
       display.drawLine(0, 54, 128, 54, WHITE);
       display.setCursor(0, 56);
       display.printf("R1:%d R2:%d R3:%d R4:%d", digitalRead(PINES_RELES[0]),
@@ -217,33 +212,52 @@ void vControlTask(void *pvParameters) {
       display.display();
       displayTimer = 0;
     }
-
     vTaskDelay(pdMS_TO_TICKS(100));
   }
 }
 
 // ==========================================
-// TAREA 0: TELEMETRÍA CLOUD
+// TAREA 0: TELEMETRÍA CLOUD (CORE 0)
 // ==========================================
 void vCloudSyncTask(void *pvParameters) {
+  unsigned long lastMetricsTime = 0;
   for (;;) {
     if (Firebase.ready()) {
       if (xSemaphoreTake(xFirebaseMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-
         // 1. Sincronizar Modo
         if (Firebase.RTDB.getString(&fbdo, "system/config/mode")) {
           currentMode = fbdo.stringData();
         }
 
-        // 2. Controladores (Relés 1 y 2 asientan órdenes de App)
+        // 2. Controladores
         if (Firebase.RTDB.getBool(&fbdo, "system/devices/1/isOn")) {
-          digitalWrite(PINES_RELES[0], fbdo.boolData() ? HIGH : LOW);
+          bool val = fbdo.boolData();
+          if (digitalRead(PINES_RELES[0]) != val) {
+            digitalWrite(PINES_RELES[0], val ? HIGH : LOW);
+            Serial.printf("[APP] 💡 Iluminación %s\n", val ? "ON" : "OFF");
+          }
         }
         if (Firebase.RTDB.getBool(&fbdo, "system/devices/2/isOn")) {
-          digitalWrite(PINES_RELES[1], fbdo.boolData() ? HIGH : LOW);
+          bool val = fbdo.boolData();
+          if (digitalRead(PINES_RELES[1]) != val) {
+            digitalWrite(PINES_RELES[1], val ? HIGH : LOW);
+            Serial.printf("[APP] ❄️ Ventilación %s\n", val ? "ON" : "OFF");
+          }
         }
         if (Firebase.RTDB.getBool(&fbdo, "system/devices/3/isOn")) {
-          digitalWrite(PINES_RELES[2], fbdo.boolData() ? HIGH : LOW);
+          bool val = fbdo.boolData();
+          if (digitalRead(PINES_RELES[2]) != val) {
+            digitalWrite(PINES_RELES[2], val ? HIGH : LOW);
+            Serial.printf("[APP] 🛋️ Confort %s\n", val ? "ON" : "OFF");
+          }
+        }
+        if (Firebase.RTDB.getBool(&fbdo, "system/devices/4/isOn")) {
+          bool val = fbdo.boolData();
+          if (digitalRead(PINES_RELES[3]) != val) {
+            digitalWrite(PINES_RELES[3], val ? HIGH : LOW);
+            Serial.printf("[APP] 🚨 Sistema de Alarma %s\n",
+                          val ? "ON" : "OFF");
+          }
         }
 
         // 3. Reinicio Remoto
@@ -255,71 +269,94 @@ void vCloudSyncTask(void *pvParameters) {
           }
         }
 
-        // 4. Subida de Métricas con Vóltaje y Amperaje leídos en Tarea 1
-        // Como la Tarea 1 lee contínuamente (Loop 100ms), obtenemos el RMS
-        // reciente recalculado
-        float i_rms_upload = getCurrentRMS(PIN_CORRIENTE);
-        float v_ac_upload = getVoltageAC(PIN_VOLTAJE);
-        float p_upload = v_ac_upload * i_rms_upload;
+        // 4. Subida de Métricas (Cada 2 segundos)
+        if (millis() - lastMetricsTime > 2000) {
+          lastMetricsTime = millis();
 
-        // Calcular Factor de Potencia (Simulado para resistivo puro = 1.0)
-        float pf_upload = (p_upload > 0) ? 0.98 : 0.0;
+          float i_u = getCurrentRMS(PIN_CORRIENTE);
+          float v_u = getVoltageAC(PIN_VOLTAJE);
 
-        FirebaseJson metrics;
-        metrics.set("v", v_ac_upload);
-        metrics.set("i", i_rms_upload);
-        metrics.set("p", p_upload);
-        metrics.set("pf", pf_upload);
-        metrics.set("e", energykWh);
-        Firebase.RTDB.setJSON(&fbdo, "system/metrics", &metrics);
+          // Los datos reales de voltaje y corriente ahora provienen
+          // directamente de los giros del potenciómetro físico mediante las
+          // funciones de arriba.
+
+          // Simular consumo acelerado para ver subir la gráfica de costo ($) en
+          // la App
+          energykWh += 0.5;
+          // ------------------------------------------------
+
+          float p_u = v_u * i_u;
+          float pf_u = (p_u > 0) ? 0.98 : 0.0;
+
+          FirebaseJson metrics;
+          metrics.set("v", v_u);
+          metrics.set("i", i_u);
+          metrics.set("p", p_u);
+          metrics.set("pf", pf_u);
+          metrics.set("e", energykWh);
+
+          if (Firebase.RTDB.setJSON(&fbdo, "system/metrics", &metrics)) {
+            Serial.printf("[CLOUD] Telemetría OK -> %.1f W\n", p_u);
+          }
+        }
 
         xSemaphoreGive(xFirebaseMutex);
       }
     }
-    vTaskDelay(pdMS_TO_TICKS(1500)); // Refresco Real-Time Firebase a 1.5s
+
+    // El delay DEBE estar fuera del 'if (Firebase.ready())'
+    // para alimentar al Watchdog Timer (WDT) del core 0 siempre.
+    vTaskDelay(pdMS_TO_TICKS(200));
   }
 }
 
 void setup() {
   Serial.begin(115200);
 
-  // Inicializar Relés y Sensores
   for (int p : PINES_RELES)
     pinMode(p, OUTPUT);
   pinMode(PIN_PIR, INPUT);
-
-  // Aumentar la resolución del ADC del ESP32 a 12 bits para mayor precisión en
-  // Corriente Alterna
   analogReadResolution(12);
 
-  // Config Pantalla OLED
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-    Serial.println(F("Fallo crítico: No se detecta OLED"));
+    Serial.println(F("OLED no detectado"));
   } else {
     display.clearDisplay();
     display.setTextColor(WHITE);
     display.setCursor(0, 20);
-    display.println("Iniciando Sistema...");
+    display.println("Iniciando...");
     display.display();
   }
 
-  // Cargar Energía desde Flash EPROM
   preferences.begin("energy", false);
   energykWh = preferences.getFloat("total", 0.0);
 
-  // Conexión Red y Firebase
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.print("Conectando a WiFi...");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\n[OK] WiFi Conectado.");
+
+  // Configuración Firebase (Requiere habilitar "Anónimo" en Firebase Console)
   config.api_key = API_KEY;
   config.database_url = DATABASE_URL;
+  if (Firebase.signUp(&config, &auth, "", "")) {
+    Serial.println("[OK] Firebase Auth Exitoso (Console)");
+  } else {
+    Serial.printf("[!] Error Auth: %s\n",
+                  config.signer.signupError.message.c_str());
+  }
+
   Firebase.begin(&config, &auth);
   Firebase.reconnectWiFi(true);
 
-  // Lanzar RTOS (Multihilo)
   xFirebaseMutex = xSemaphoreCreateMutex();
   xTaskCreatePinnedToCore(vControlTask, "Control", 4096, NULL, 2, NULL, 1);
   xTaskCreatePinnedToCore(vCloudSyncTask, "Cloud", 8192, NULL, 1, NULL, 0);
 
-  Serial.println("Firmware Desplegado Correctamente.");
+  Serial.println("Firmware Desplegado.");
 }
 
 void loop() { vTaskDelete(NULL); }
