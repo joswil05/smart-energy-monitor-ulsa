@@ -1,5 +1,10 @@
-export const calculateTotalCost = (kwh: number, currency: string) => {
-    // Tarifas Disnorte-Dissur 2025/2026 (León)
+export const calculateTotalCost = (kwh: number, currency: string, customTariffRate?: number) => {
+    // Si el usuario configuró una tarifa personalizada específica (> 0)
+    if (customTariffRate && customTariffRate > 0) {
+        return Number((kwh * customTariffRate).toFixed(2));
+    }
+
+    // Tarifas Disnorte-Dissur 2025/2026 (León / Managua)
     const FIXED_CHARGE = 36.05;
 
     // Definición de bloques escalonados (anchos de banda)
@@ -25,7 +30,7 @@ export const calculateTotalCost = (kwh: number, currency: string) => {
     }
 
     if (currency === '$') {
-        return cost / 36.8; // Approximate conversion rate for USD
+        return Number((cost / 36.8).toFixed(2)); // Conversión aproximada USD (1 USD = ~36.8 NIO)
     }
-    return cost;
+    return Number(cost.toFixed(2));
 };

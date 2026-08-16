@@ -1,8 +1,33 @@
+﻿# Dependencias y Salida de Compilación Web/Móvil (React / Vite / Capacitor)
+app/node_modules/
 node_modules/
-build/
+app/dist/
 dist/
+dist-ssr/
+build/
 coverage/
-.DS_Store
-*.log
-.env*
+*.local
+app/.env
+.env
+.env.*.local
+!app/.env.example
 !.env.example
+
+# Compilación de Firmware ESP32 (PlatformIO)
+firmware/.pio/
+firmware/.vscode/
+firmware/compile_commands.json
+.pio/
+.vscode/
+compile_commands.json
+
+# Secretos y Credenciales del Hardware
+firmware/include/secrets.h
+!firmware/include/secrets.h.example
+include/secrets.h
+!include/secrets.h.example
+
+# Archivos Temporales de Sistema
+*.log
+.DS_Store
+Thumbs.db

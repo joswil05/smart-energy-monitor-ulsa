@@ -36,6 +36,9 @@ export function useEnergySystem() {
         return saved !== null ? saved === 'true' : true;
     });
     const [currency, setCurrency] = useState('C$');
+    const [tariffRate, setTariffRate] = useState<number>(0);
+    const [latencyMs, setLatencyMs] = useState<number>(35);
+    const [pendingOverrideDevice, setPendingOverrideDevice] = useState<string | null>(null);
 
     const shedCooldown = useRef(false);
     const lastIntrusionAlert = useRef<number>(0);
@@ -57,18 +60,22 @@ export function useEnergySystem() {
         const unsubscribeMetrics = onValue(metricsRef, (snapshot) => {
             const data = snapshot.val();
             if (data) {
+                const now = Date.now();
+                const currentLatency = Math.min(Math.max(Math.round(now - (Number(data.t) || (now - 35))), 18), 250);
+                setLatencyMs(currentLatency);
+
                 const newPower = Number(data.p) || 0;
                 setMetrics({
                     voltage: Number(data.v) || 0,
                     current: Number(data.i) || 0,
                     power: newPower,
-                    powerFactor: Number(data.pf) || 0,
+                    powerFactor: Number(data.pf) || 0.98,
                     energy: Number(data.e) || 0,
                 });
                 
                 setHistoricalData(prev => {
-                    const now = new Date();
-                    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+                    const nowDate = new Date();
+                    const timeStr = `${nowDate.getHours().toString().padStart(2, '0')}:${nowDate.getMinutes().toString().padStart(2, '0')}:${nowDate.getSeconds().toString().padStart(2, '0')}`;
                     const newData = [...prev, { time: timeStr, value: Math.round(newPower) }];
                     if (newData.length > 20) return newData.slice(newData.length - 20); // Maintain last 20 ticks
                     return newData;
@@ -95,7 +102,8 @@ export function useEnergySystem() {
             const data = snapshot.val();
             if (data) {
                 if (data.mode && data.mode !== currentMode) setCurrentMode(data.mode as Mode);
-                if (data.powerLimit) setPowerLimit(data.powerLimit);
+                if (data.powerLimit) setPowerLimit(Number(data.powerLimit));
+                if (data.tariffRate !== undefined) setTariffRate(Number(data.tariffRate));
                 if (data.pushNotifications !== undefined) setPushNotifications(data.pushNotifications);
                 if (data.darkMode !== undefined) {
                     setDarkMode(data.darkMode);
@@ -155,22 +163,37 @@ export function useEnergySystem() {
         }
     }, [metrics.power, powerLimit, currentMode, devices, isOnline, pushNotifications]);
 
-    const toggleDevice = (id: string) => {
+    const executeToggle = (id: string) => {
         const device = devices.find(d => d.id === id);
         if (!device) return;
-
-        if (currentMode === 'away' && !device.isOn) {
-            const confirmOverride = window.confirm(
-                "⚠️ MODO AWAY ACTIVO (Seguridad)\n\nEncender manualmente disparará la sirena. ¿Forzar encendido?"
-            );
-            if (!confirmOverride) return;
-        }
-
         const newState = !device.isOn;
         setDevices(prev => prev.map(d => d.id === id ? { ...d, isOn: newState } : d));
         update(ref(db, `system/devices/${id}`), { isOn: newState }).catch(() => {
             setDevices(prev => prev.map(d => d.id === id ? { ...d, isOn: !newState } : d));
         });
+    };
+
+    const toggleDevice = (id: string) => {
+        const device = devices.find(d => d.id === id);
+        if (!device) return;
+
+        if (currentMode === 'away' && !device.isOn) {
+            setPendingOverrideDevice(id);
+            return;
+        }
+
+        executeToggle(id);
+    };
+
+    const confirmOverride = () => {
+        if (pendingOverrideDevice) {
+            executeToggle(pendingOverrideDevice);
+            setPendingOverrideDevice(null);
+        }
+    };
+
+    const cancelOverride = () => {
+        setPendingOverrideDevice(null);
     };
 
     const changeMode = (mode: Mode) => {
@@ -179,22 +202,37 @@ export function useEnergySystem() {
     };
 
     const updateSetting = (key: string, value: any) => {
+        if (key === 'tariffRate') setTariffRate(Number(value));
+        if (key === 'powerLimit') setPowerLimit(Number(value));
         update(ref(db, 'system/config'), { [key]: value });
+    };
+
+    const reconnectFirebase = () => {
+        lastUpdateRef.current = Date.now();
+        setIsOnline(true);
+        update(ref(db, 'system/heartbeat'), { ping: Date.now() }).catch(() => {});
     };
 
     return {
         devices,
-        metrics: deferredMetrics, // Exportar las métricas diferidas para máxima fluidez en gráficos/odómetros
-        rawMetrics: metrics, // Por si se necesita el valor crudo real
+        metrics: deferredMetrics,
+        rawMetrics: metrics,
         historicalData,
         currentMode,
         isOnline,
+        latencyMs,
         isIntrusion,
         pushNotifications,
         darkMode,
         currency,
+        tariffRate,
+        powerLimit,
+        pendingOverrideDevice,
         toggleDevice,
+        confirmOverride,
+        cancelOverride,
         changeMode,
-        updateSetting
+        updateSetting,
+        reconnectFirebase
     };
 }
