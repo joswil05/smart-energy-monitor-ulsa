@@ -77,4 +77,4 @@ pio run -t upload
 ---
 
 ## 👥 Desarrollado para
-**Universidad La Salle (ULSA)** — Proyecto de Monitoreo y Gestión Energética Inteligente.
+**Universidad Tecnológica La Salle (ULSA)** — Proyecto de Monitoreo y Gestión Energética Inteligente.
