@@ -1,0 +1,77 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "system": {
+      ".read": "auth != null",
+
+      "metrics": {
+        ".write": "auth != null && auth.uid === 'REEMPLAZAR_CON_UID_DEL_DISPOSITIVO'",
+        ".validate": "newData.hasChildren(['v', 'i', 'p', 'e', 't'])",
+        "v":   { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 500" },
+        "i":   { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 200" },
+        "p":   { ".validate": "newData.isNumber()" },
+        "q":   { ".validate": "newData.isNumber()" },
+        "s":   { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "pf":  { ".validate": "newData.isNumber() && newData.val() >= -1 && newData.val() <= 1" },
+        "f":   { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
+        "e":   { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "t":   { ".validate": "newData.isNumber()" },
+        "seq": { ".validate": "newData.isNumber()" },
+        "$desconocido": { ".validate": false }
+      },
+
+      "health": {
+        ".write": "auth != null && auth.uid === 'REEMPLAZAR_CON_UID_DEL_DISPOSITIVO'",
+        "rssi":        { ".validate": "newData.isNumber()" },
+        "up":          { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "heap":        { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "fw":          { ".validate": "newData.isString() && newData.val().length <= 32" },
+        "resetReason": { ".validate": "newData.isString() && newData.val().length <= 32" },
+        "queueDrops":  { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "$desconocido": { ".validate": false }
+      },
+
+      "devices": {
+        "$deviceId": {
+          ".validate": "$deviceId.matches(/^[1-4]$/) && newData.hasChildren(['isOn'])",
+          "isOn": {
+            ".write": "auth != null",
+            ".validate": "newData.isBoolean()"
+          },
+          "$desconocido": { ".validate": false }
+        }
+      },
+
+      "config": {
+        ".write": "auth != null && auth.uid !== 'REEMPLAZAR_CON_UID_DEL_DISPOSITIVO'",
+        "mode":              { ".validate": "newData.isString() && newData.val().matches(/^(normal|eco|night|away)$/)" },
+        "powerLimit":        { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 20000" },
+        "tariffRate":        { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "currency":          { ".validate": "newData.isString() && newData.val().length <= 4" },
+        "darkMode":          { ".validate": "newData.isBoolean()" },
+        "pushNotifications": { ".validate": "newData.isBoolean()" },
+        "$desconocido": { ".validate": false }
+      },
+
+      "command": {
+        "action": {
+          ".write": "auth != null",
+          ".validate": "newData.isString() && newData.val().matches(/^(none|restart)$/)"
+        },
+        "$desconocido": { ".validate": false }
+      },
+
+      "security": {
+        "alert": {
+          ".write": "auth != null && auth.uid === 'REEMPLAZAR_CON_UID_DEL_DISPOSITIVO'",
+          ".validate": "newData.isBoolean()"
+        },
+        "$desconocido": { ".validate": false }
+      },
+
+      "$desconocido": { ".validate": false }
+    }
+  }
+}

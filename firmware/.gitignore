@@ -5,3 +5,9 @@ include/secrets.h
 !include/secrets.h.example
 *.log
 .DS_Store
+
+# Artefactos de las pruebas de host del calculo de metrologia
+test/**/*.exe
+test/**/*.obj
+test/**/*.pdb
+test/**/*.ilk

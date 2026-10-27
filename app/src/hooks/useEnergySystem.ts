@@ -210,7 +210,9 @@ export function useEnergySystem() {
     const reconnectFirebase = () => {
         lastUpdateRef.current = Date.now();
         setIsOnline(true);
-        update(ref(db, 'system/heartbeat'), { ping: Date.now() }).catch(() => {});
+        // Antes se escribia en system/heartbeat. Nadie leia ese nodo: el
+        // firmware no lo consulta en ningun punto. Reconectar es un asunto
+        // puramente local del cliente, asi que no necesita tocar la base.
     };
 
     return {

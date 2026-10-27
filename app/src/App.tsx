@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Haptics } from '@capacitor/haptics';
 import { cn } from './lib/utils';
 import { useEnergySystem } from './hooks/useEnergySystem';
+import { useAuth } from './hooks/useAuth';
 
 // Views
 import { DashboardTab } from './views/DashboardTab';
@@ -21,6 +22,7 @@ import { SystemModesTab } from './views/SystemModesTab';
 import { SettingsTab } from './views/SettingsTab';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { HardwareHelpModal } from './components/HardwareHelpModal';
+import { LoginView } from './views/LoginView';
 import { ref, update } from 'firebase/database';
 import { db } from './lib/firebase';
 
@@ -32,6 +34,24 @@ const navItems = [
 ];
 
 export default function App() {
+  const { status, error, isSubmitting, signIn, signOut } = useAuth();
+
+  if (status === 'cargando') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#070A11]">
+        <Zap size={28} className="text-blue-500 animate-pulse" fill="currentColor" />
+      </div>
+    );
+  }
+
+  if (status === 'sin-sesion') {
+    return <LoginView onSignIn={signIn} error={error} isSubmitting={isSubmitting} />;
+  }
+
+  return <AppAutenticada onSignOut={signOut} />;
+}
+
+function AppAutenticada({ onSignOut }: { onSignOut: () => void }) {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
 
@@ -59,7 +79,8 @@ export default function App() {
   } = useEnergySystem();
 
   const handleRestartESP32 = () => {
-    update(ref(db, 'system/command'), { action: 'restart', timestamp: Date.now() });
+    update(ref(db, 'system/command'), { action: 'restart' })
+      .catch((e) => console.error('[cmd] No se pudo pedir el reinicio:', e));
     try { Haptics.vibrate({ duration: 30 }); } catch (e) { }
   };
 
@@ -101,6 +122,7 @@ export default function App() {
             onSettingChange={updateSetting}
             onRestartESP32={handleRestartESP32}
             onOpenHelp={() => setIsHelpModalOpen(true)}
+            onSignOut={onSignOut}
           />
         );
       default:

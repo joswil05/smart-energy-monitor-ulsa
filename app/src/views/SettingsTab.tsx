@@ -11,6 +11,7 @@ interface SettingsTabProps {
     onSettingChange: (key: string, value: any) => void;
     onRestartESP32: () => void;
     onOpenHelp?: () => void;
+    onSignOut?: () => void;
 }
 
 function HoldToConfirmButton({ onConfirm }: { onConfirm: () => void }) {
@@ -97,7 +98,7 @@ export function SettingsTab({
     onSettingChange,
     onRestartESP32,
     onOpenHelp
-}: SettingsTabProps) {
+, onSignOut }: SettingsTabProps) {
     const toggleSetting = (setting: string, currentValue: boolean) => {
         onSettingChange(setting, !currentValue);
         try { Haptics.vibrate({ duration: 15 }); } catch (e) { }
@@ -274,6 +275,27 @@ export function SettingsTab({
                     </div>
                 </div>
             </div>
+
+            {onSignOut && (
+                <div>
+                    <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wider transition-colors duration-150 px-2 lg:px-0 select-none">Cuenta</h3>
+                    <div className="bg-white dark:bg-[#0E1422] rounded-2xl border border-slate-200/90 dark:border-slate-800/80 transition-[background-color,border-color] duration-150 shadow-sm shadow-slate-900/5">
+                        <div className="p-4 flex items-center justify-between">
+                            <div>
+                                <p className="text-slate-900 dark:text-slate-50 text-sm sm:text-base font-medium">Cerrar sesión</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">Se pedirán las credenciales al volver a entrar</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={onSignOut}
+                                className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 text-xs font-semibold cursor-pointer transition-colors border border-red-500/20"
+                            >
+                                Salir
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <p className="text-center text-xs sm:text-sm text-[#64748B] dark:text-[#94A3B8] pb-6 mt-8 select-none">
                 SmartEnergy Monitor UI v1.2.0<br />
